@@ -1,4 +1,4 @@
-use std::{env, error::Error, fs};
+use std::{error::Error, fs};
 
 pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     let contents = fs::read_to_string(config.file_path)?;
@@ -17,28 +17,19 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
 }
 
 pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
-    let mut results = Vec::new();
-
-    for line in contents.lines() {
-        if line.contains(query) {
-            results.push(line);
-        }
-    }
-
-    results
+    contents
+        .lines()
+        .filter(|line| line.contains(query))
+        .collect()
 }
 
 pub fn search_case_insensitive<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
     let query = query.to_lowercase();
-    let mut results = Vec::new();
 
-    for line in contents.lines() {
-        if line.to_lowercase().contains(&query) {
-            results.push(line);
-        }
-    }
-
-    results
+    contents
+        .lines()
+        .filter(|line| line.to_lowercase().contains(&query))
+        .collect()
 }
 
 pub struct Config {
@@ -48,26 +39,34 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn build(args: &[String]) -> Result<Config, &'static str> {
-        if args.len() < 3 {
-            return Err("Not enough arguments!");
-        }
+    pub fn build(mut args: impl Iterator<Item = String>) -> Result<Config, &'static str> {
+        args.next();
 
-        let query = args[1].clone();
-        let file_path = args[2].clone();
+        let query = match args.next() {
+            Some(arg) => arg,
+            None => return Err("Didn't get a query string"),
+        };
 
-        let mut ignore_case = env::var("IGNORE_CASE").is_ok();
+        let file_path = match args.next() {
+            Some(arg) => arg,
+            None => return Err("Didn't get a file path"),
+        };
 
-        if args.len() == 4 {
-            let case_sensitive: Vec<&str> = args[3].split('=').collect();
+        let case_sensitive = match args.next() {
+            Some(arg) => arg,
+            None => return Err("Didn't get a file path"),
+        };
 
-            if case_sensitive[1] == "true" {
-                ignore_case = false
-            } else if case_sensitive[1] == "false" {
-                ignore_case = true
-            } else {
-                return Err("Invalid argument for 'case-sensitive' option!");
-            }
+        let case_sensitive: Vec<&str> = case_sensitive.as_str().split('=').collect();
+
+        let ignore_case;
+
+        if case_sensitive[1] == "true" {
+            ignore_case = false
+        } else if case_sensitive[1] == "false" {
+            ignore_case = true
+        } else {
+            return Err("Invalid argument for 'case-sensitive' option!");
         }
 
         Ok(Config {
